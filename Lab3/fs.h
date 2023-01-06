@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdint>
+#include <string>
 #include "disk.h"
 
 #ifndef __FS_H__
@@ -24,11 +25,27 @@ struct dir_entry {
     uint8_t access_rights; // read (0x04), write (0x02), execute (0x01)
 };
 
+const unsigned MAX_DIR_ENTRIES = (BLOCK_SIZE / sizeof(dir_entry));
+
+struct dir_info {
+    int block;  // disk block number where the dir 'entries' are stored
+    int index;  // index to actual dir_entry in the 'entries' array
+    dir_entry entries[MAX_DIR_ENTRIES]; // all directory entries in a block
+};
+
 class FS {
 private:
     Disk disk;
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
+
+    //----------- OWN VARIABLES -----------
+    int ReadFromFAT();
+    int writeToFAT();
+    std::string getFileName(std::string filepath);
+    int findFreeBlock();
+    uint16_t curr_blk = ROOT_BLOCK;
+    int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries); 
 
 public:
     FS();
