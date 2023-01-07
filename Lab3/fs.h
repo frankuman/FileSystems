@@ -16,6 +16,8 @@
 #define READ 0x04
 #define WRITE 0x02
 #define EXECUTE 0x01
+#define OLD 0
+#define NEW 1
 
 struct dir_entry {
     char file_name[56]; // name of the file / sub-directory
@@ -45,7 +47,7 @@ private:
     std::string getFileName(std::string filepath);
     int findFreeBlock();
     uint16_t curr_blk = ROOT_BLOCK;
-    int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries); 
+    int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries, uint8_t NewOrOld); 
 
 public:
     FS();

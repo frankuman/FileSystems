@@ -15,7 +15,7 @@ FS::~FS()
 //Userdefined functions
 int FS::ReadFromFAT(){
     int status = disk.read(FAT_BLOCK, (uint8_t*)fat);
-    std::cout << "DEBUG: Trying to read... status: " << status << std::endl;
+    //std::cout << "DEBUG: Trying to read... status: " << status << std::endl;
     return status;
     
 }
@@ -67,7 +67,7 @@ FS::format(){
     }
     return status;
 }
-int FS::FileEntry(int dir_block, std::string filepath, int& index, dir_entry* dir_entries){
+int FS::FileEntry(int dir_block, std::string filepath, int& index, dir_entry* dir_entries, uint8_t NewOrOld){
 
     int status = disk.read(dir_block, (uint8_t*)dir_entries);
     if (status){
@@ -75,13 +75,23 @@ int FS::FileEntry(int dir_block, std::string filepath, int& index, dir_entry* di
     }
     
     index = -1;
-    for(int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
-        if (dir_entries[i].file_name[0] == 0){ //We can place file here
-            if(index < 0){
+    if(NewOrOld == 1){
+        for(int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
+            if (dir_entries[i].file_name[0] == 0){ //file here
+                if(index < 0){
+                    index = i;
+                }
+            }
+        }
+    }
+    else{
+        for(int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
+            if (strcmp(dir_entries[i].file_name, filepath.c_str()) == 0){ //Detta behöver skrivas om angående fulla filnamn
                 index = i;
             }
         }
     }
+    
     std::cout << "DEBUG: Found Index for filename at " << index << std::endl;
     // 1. If (Check if a file name with that name already exists)
     // 2. Check access rights (IGNORE FOR NOW)
@@ -101,7 +111,7 @@ int FS::create(std::string filepath){
     std::string nameOfFile = filepath;
     dir_info dir;
     
-    status = FileEntry(dir.block,filepath,dir.index,dir.entries);
+    status = FileEntry(dir.block,filepath,dir.index,dir.entries, NEW);
     int current_block = findFreeBlock();
 
 
@@ -168,12 +178,14 @@ int FS::create(std::string filepath){
     dir.entries[dir.index].access_rights = READ | WRITE;
     
     status = disk.write(dir.block, (uint8_t*)dir.entries);
-    if (status)
+    if (status){
         return status;
+    }
+        
     status = writeToFAT();
-    if (status)
+    if (status){
         return status;
-    
+    }
     return 0;
 }
 
@@ -182,6 +194,46 @@ int
 FS::cat(std::string filepath)
 {
     std::cout << "FS::cat(" << filepath << ")\n";
+    int status = ReadFromFAT();
+    if(status){
+        return status;
+    }
+
+    dir_info dir;
+    dir_entry dir_entries[MAX_DIR_ENTRIES];
+    status = FileEntry(dir.block,filepath,dir.index,dir.entries,OLD);
+    if(status){
+        return status;
+    }
+
+    int file_block = dir.entries[dir.index].first_blk;
+    
+
+    uint32_t size = 0;
+    uint32_t tot_size = 0;
+
+    char data[BLOCK_SIZE];
+
+    status = disk.read(file_block, (uint8_t*)data);
+    if(status){
+        return status;
+    }
+    int length = 0;
+
+    
+    while(tot_size < dir.entries[dir.index].size){
+        for (int i = size; i < BLOCK_SIZE; i++, length++){
+            if (data[i] == '\0'){
+                break;
+            } 
+        }
+        std::cout << &data[size] << "\n";
+        size += length;
+        tot_size += length;
+        size++;
+        tot_size++;
+        std::cout << "\n";
+    }
     return 0;
 }
 
@@ -199,51 +251,47 @@ std::cout << "FS::ls()\n";
     // Get the directory entries for the current dir
     dir_entry dir_entries[MAX_DIR_ENTRIES];
     status = disk.read(curr_blk, (uint8_t*)dir_entries);
-    if (status)
+    if (status){
         return status;
-
-
-    // std::cout << "Name \t size" << std::endl; 
-    // for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
-    //     if (dir_entries[i].file_name[0] != 0){
-    //         std::string blocks = std::to_string(curr_blk);
+    }
+        
+    std::cout << "Name \t size" << std::endl; 
+    for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
+        if (dir_entries[i].file_name[0] != 0){
+            std::string blocks = std::to_string(curr_blk);
             
+            int curr_blk = dir_entries[i].first_blk;
+            std::cout << dir_entries[i].file_name << "\t " << dir_entries[i].size << std::endl;
+        }
+    }
+
+    // Use printf to make the output prettier and more readable
+    // Design decision: Show also the used FAT blocks - to make it easier to test the program
+    // char underline[50];
+    // memset(underline, '-', 50 - 1);
+    // underline[50 - 1] = '\0';
+    // printf("%-*.*s %-*.*s  %-*.*s  %*.*s  %-*.*s\n", 50, 50, "filename", 5, 5, "type", 6, 6, "access", 9, 9, "size", 15, 15, "file-blocks");
+    // printf("%-*.*s %-*.*s  %-*.*s  %*.*s  %-*.*s\n", 50, 50, underline, 5, 5, underline, 6, 6, underline, 9, 9, underline, 15, 15, underline);
+    // for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++)
+    // {
+    //     if (dir_entries[i].file_name[0] != 0)
+    //     {
+    //         // this is a valid dir entry
+    //         int curr_blk = dir_entries[i].first_blk;
+    //         std::string blocks = std::to_string(curr_blk);
     //         while (curr_blk >= 0 && curr_blk < (int)MAX_DIR_ENTRIES && fat[curr_blk] != FAT_EOF) {
     //             curr_blk = fat[curr_blk];
     //             blocks += "," + std::to_string(curr_blk);
     //         }
-    //         int curr_blk = dir_entries[i].first_blk;
-    //         std::cout << dir_entries[i].file_name << "\t " << dir_entries[i].size << std::endl;
+    //         //dir_entries[i].access_rights
+    //         std::string type = dir_entries[i].type == TYPE_FILE ? "File" : "Dir";
+    //         std::string access = "";
+    //         access += (dir_entries[i].access_rights & READ) ? "r" : "-";
+    //         access += (dir_entries[i].access_rights & WRITE) ? "w" : "-";
+    //         access += (dir_entries[i].access_rights & EXECUTE) ? "x" : "-";            
+    //         printf("%-*.*s %-*.*s   %-*.*s %*.d  %s\n", 28, 28, dir_entries[i].file_name, 5, 5, type.c_str(), 5, 5, access.c_str(), 10, dir_entries[i].size, blocks.c_str());
     //     }
     // }
-
-    // Use printf to make the output prettier and more readable
-    // Design decision: Show also the used FAT blocks - to make it easier to test the program
-    char underline[50];
-    memset(underline, '-', 50 - 1);
-    underline[50 - 1] = '\0';
-    printf("%-*.*s %-*.*s  %-*.*s  %*.*s  %-*.*s\n", 50, 50, "filename", 5, 5, "type", 6, 6, "access", 9, 9, "size", 15, 15, "file-blocks");
-    printf("%-*.*s %-*.*s  %-*.*s  %*.*s  %-*.*s\n", 50, 50, underline, 5, 5, underline, 6, 6, underline, 9, 9, underline, 15, 15, underline);
-    for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++)
-    {
-        if (dir_entries[i].file_name[0] != 0)
-        {
-            // this is a valid dir entry
-            int curr_blk = dir_entries[i].first_blk;
-            std::string blocks = std::to_string(curr_blk);
-            while (curr_blk >= 0 && curr_blk < (int)MAX_DIR_ENTRIES && fat[curr_blk] != FAT_EOF) {
-                curr_blk = fat[curr_blk];
-                blocks += "," + std::to_string(curr_blk);
-            }
-            //dir_entries[i].access_rights
-            std::string type = dir_entries[i].type == TYPE_FILE ? "File" : "Dir";
-            std::string access = "";
-            access += (dir_entries[i].access_rights & READ) ? "r" : "-";
-            access += (dir_entries[i].access_rights & WRITE) ? "w" : "-";
-            access += (dir_entries[i].access_rights & EXECUTE) ? "x" : "-";            
-            printf("%-*.*s %-*.*s   %-*.*s %*.d  %s\n", 28, 28, dir_entries[i].file_name, 5, 5, type.c_str(), 5, 5, access.c_str(), 10, dir_entries[i].size, blocks.c_str());
-        }
-    }
 
     return 0;
 }
