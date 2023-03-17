@@ -41,13 +41,18 @@ private:
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
 
-    //----------- OWN VARIABLES -----------
+    //----------- OWN FUNCTIONS -----------
     int ReadFromFAT();
     int writeToFAT();
     std::string getFileName(std::string filepath);
     int findFreeBlock();
     uint16_t curr_blk = ROOT_BLOCK;
-    int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries, uint8_t NewOrOld); 
+    int FindingFileEntry(std::string filepath, uint8_t newOrExisting, dir_info& dir, uint8_t acess_rights);
+    int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries, uint8_t NewOrOld);
+    int GetDirectoryBlock(std::string filepath, int& dir_block);
+    int get_file_string(std::string filepath,std::string &text);
+    void writeBlock(int block_num, int offset, std::string data);
+    void readBlock(int block_num, uint8_t* buffer);
 
 public:
     FS();

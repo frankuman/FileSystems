@@ -125,7 +125,7 @@ FS::getDirBlock(std::string filepath, int& dir_block)
 
     }
     else {
-
+        
         if (dirpath.front() == '/') {
             // absolute path - starts at the root dir
             dir_block = ROOT_BLOCK;

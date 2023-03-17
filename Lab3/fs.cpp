@@ -20,11 +20,6 @@ int FS::ReadFromFAT(){
     
 }
 
-/*
-std::string FS::getFileName(std::string filepath){
-
-}
-*/
 int FS::findFreeBlock() {
     int fatIndex;
     for (fatIndex = 2; fatIndex < (BLOCK_SIZE / 2); fatIndex++){
@@ -40,8 +35,7 @@ int FS::findFreeBlock() {
 }
 
 // formats the disk, i.e., creates an empty file system
-int
-FS::format(){
+int FS::format(){
     std::cout << "FS::format()\n";
 
     // initializes FAT
@@ -67,7 +61,28 @@ FS::format(){
     }
     return status;
 }
-int FS::FileEntry(int dir_block, std::string filepath, int& index, dir_entry* dir_entries, uint8_t NewOrOld){
+
+int FS::FindingFileEntry(std::string filepath, uint8_t newOrExisting, dir_info &dir, uint8_t access_rights){
+    
+    int status = GetDirectoryBlock(filepath, dir.block);
+    if(status) return status;
+
+    return FileEntry(dir.block, filepath, dir.index, dir.entries, newOrExisting);
+}
+
+int FS::GetDirectoryBlock(std::string filepath, int &dir_block){
+
+    //std::cout << "Current filepath: " << filepath << std::endl;
+    //std::cout << "Current dir_block: " << dir_block << std::endl; 
+
+    dir_block = ROOT_BLOCK;
+
+
+    return 0;
+}
+
+int FS::FileEntry(int dir_block, std::string filepath, int &index, dir_entry *dir_entries, uint8_t NewOrOld)
+{
 
     int status = disk.read(dir_block, (uint8_t*)dir_entries);
     if (status){
@@ -92,7 +107,7 @@ int FS::FileEntry(int dir_block, std::string filepath, int& index, dir_entry* di
         }
     }
     
-    std::cout << "DEBUG: Found Index for filename at " << index << std::endl;
+    //std::cout << "DEBUG: Found Index for filename at " << index << std::endl;
     // 1. If (Check if a file name with that name already exists)
     // 2. Check access rights (IGNORE FOR NOW)
     return status;
@@ -113,8 +128,6 @@ int FS::create(std::string filepath){
     
     status = FileEntry(dir.block,filepath,dir.index,dir.entries, NEW);
     int current_block = findFreeBlock();
-
-
 
     if(current_block == -1){
         std::cout << "ERROR: No free blocks\n" << std::endl;
@@ -190,8 +203,7 @@ int FS::create(std::string filepath){
 }
 
 // cat <filepath> reads the content of a file and prints it on the screen
-int
-FS::cat(std::string filepath)
+int FS::cat(std::string filepath)
 {
     std::cout << "FS::cat(" << filepath << ")\n";
     int status = ReadFromFAT();
@@ -238,9 +250,9 @@ FS::cat(std::string filepath)
 }
 
 // ls lists the content in the currect directory (files and sub-directories)
-int
-FS::ls(){
-std::cout << "FS::ls()\n";
+int FS::ls(){
+
+    std::cout << "FS::ls()\n";
 
     // read FAT from disk to memory
     int status = ReadFromFAT();
@@ -265,84 +277,321 @@ std::cout << "FS::ls()\n";
         }
     }
 
-    // Use printf to make the output prettier and more readable
-    // Design decision: Show also the used FAT blocks - to make it easier to test the program
-    // char underline[50];
-    // memset(underline, '-', 50 - 1);
-    // underline[50 - 1] = '\0';
-    // printf("%-*.*s %-*.*s  %-*.*s  %*.*s  %-*.*s\n", 50, 50, "filename", 5, 5, "type", 6, 6, "access", 9, 9, "size", 15, 15, "file-blocks");
-    // printf("%-*.*s %-*.*s  %-*.*s  %*.*s  %-*.*s\n", 50, 50, underline, 5, 5, underline, 6, 6, underline, 9, 9, underline, 15, 15, underline);
-    // for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++)
-    // {
-    //     if (dir_entries[i].file_name[0] != 0)
-    //     {
-    //         // this is a valid dir entry
-    //         int curr_blk = dir_entries[i].first_blk;
-    //         std::string blocks = std::to_string(curr_blk);
-    //         while (curr_blk >= 0 && curr_blk < (int)MAX_DIR_ENTRIES && fat[curr_blk] != FAT_EOF) {
-    //             curr_blk = fat[curr_blk];
-    //             blocks += "," + std::to_string(curr_blk);
-    //         }
-    //         //dir_entries[i].access_rights
-    //         std::string type = dir_entries[i].type == TYPE_FILE ? "File" : "Dir";
-    //         std::string access = "";
-    //         access += (dir_entries[i].access_rights & READ) ? "r" : "-";
-    //         access += (dir_entries[i].access_rights & WRITE) ? "w" : "-";
-    //         access += (dir_entries[i].access_rights & EXECUTE) ? "x" : "-";            
-    //         printf("%-*.*s %-*.*s   %-*.*s %*.d  %s\n", 28, 28, dir_entries[i].file_name, 5, 5, type.c_str(), 5, 5, access.c_str(), 10, dir_entries[i].size, blocks.c_str());
-    //     }
-    // }
-
     return 0;
 }
 
 // cp <sourcepath> <destpath> makes an exact copy of the file
 // <sourcepath> to a new file <destpath>
-int
-FS::cp(std::string sourcepath, std::string destpath)
-{
+int FS::cp(std::string sourcepath, std::string destpath){
     std::cout << "FS::cp(" << sourcepath << "," << destpath << ")\n";
+
+    int status = ReadFromFAT();
+    if (status){
+        return status;
+    }
+
+    //check if the desitnation file already exists
+    dir_entry dir_entries[MAX_DIR_ENTRIES];
+    status = disk.read(curr_blk, (uint8_t*)dir_entries);
+    if (status){
+        return status;
+    }
+
+    for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
+    if (dir_entries[i].file_name[0] != 0){
+        std::string blocks = std::to_string(curr_blk);
+        
+            if(dir_entries[i].file_name == destpath){
+                std::cout << "Error: The destination file already exists!" << std::endl;
+                return 0;
+            }
+        }
+    }
+
+    dir_info source;
+    dir_info destination;
+
+    status = FindingFileEntry(sourcepath, OLD, source, READ);
+    if(status) return status;
+    status = FindingFileEntry(destpath, NEW, destination, WRITE);
+    if(status) return status;
+
+    char data[BLOCK_SIZE];
+    memset(data, 0, BLOCK_SIZE);
+
+    int first_block = -1;
+    int previous_block = -1;
+    int source_block = source.entries[source.index].first_blk;
+    while(source_block != FAT_EOF){
+
+        //finding FAT free entry
+        int current_block = findFreeBlock();
+        if(current_block < 0){
+            std::cout << "Error: There isn't anymore free blocks in FAT" << std::endl;
+            return 1;
+        }
+
+        if(first_block == -1){
+            first_block = current_block;
+        }
+        if(previous_block != -1){
+            fat[previous_block] = current_block;
+        }
+        fat[current_block] = FAT_EOF;
+
+        status = disk.read(source_block, (uint8_t*)data);
+        if(status) return status;
+        status = disk.write(current_block, (uint8_t*)data);
+        if(status) return status;
+
+        previous_block = current_block;
+        source_block = fat[source_block];
+    }
+
+    std::cout << "Destination index: " << destination.index << std::endl;
+
+    //copying the file entry info from source to destination
+    memcpy(&destination.entries[destination.index], &source.entries[source.index], sizeof(dir_entry));
+    
+    //set the new filename and the new first-block
+    memcpy(destination.entries[destination.index].file_name, destpath.c_str(), destpath.length() + 1);
+    destination.entries[destination.index].first_blk = first_block;
+
+    status = disk.write(destination.block, (uint8_t*)destination.entries);
+    if(status) return status;
+
+    status = writeToFAT();
+    if(status) return status;
+
     return 0;
 }
 
 // mv <sourcepath> <destpath> renames the file <sourcepath> to the name <destpath>,
 // or moves the file <sourcepath> to the directory <destpath> (if dest is a directory)
-int
-FS::mv(std::string sourcepath, std::string destpath)
+int FS::mv(std::string sourcepath, std::string destpath)
 {
     std::cout << "FS::mv(" << sourcepath << "," << destpath << ")\n";
+
+    dir_info source;
+    dir_info destination;
+    
+    int status = FindingFileEntry(sourcepath, OLD, source, READ);
+    if(status) return status;
+    status = FindingFileEntry(destpath, NEW, destination, WRITE);
+    if(status) return status;
+
+    //check if the desitnation file already exists
+    dir_entry dir_entries[MAX_DIR_ENTRIES];
+    status = disk.read(curr_blk, (uint8_t*)dir_entries);
+    if (status){
+        return status;
+    }
+
+    for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
+        if (dir_entries[i].file_name[0] != 0){
+            std::string blocks = std::to_string(curr_blk);
+
+            if(dir_entries[i].file_name == destpath){
+                std::cout << "Error: The destination file already exists!" << std::endl;
+                return 0;
+            }
+        }
+    }
+
+    //since we are only working at root level, I don't need to handle with directories (Yet) But I would add the check here
+    // --> HERE
+
+    if(destination.block == source.block){ // The source file exists on the same level as the destination file
+        memcpy(source.entries[source.index].file_name, destpath.c_str(), destpath.length() + 1);
+
+        status = disk.write(source.block, (uint8_t*) source.entries);
+        if(status){
+            return status;
+        }
+    }
+
     return 0;
 }
 
 // rm <filepath> removes / deletes the file <filepath>
-int
-FS::rm(std::string filepath)
-{
+int FS::rm(std::string filepath){
     std::cout << "FS::rm(" << filepath << ")\n";
+    
+    int status = ReadFromFAT();
+    if(status) return status;
+    
+    dir_info source;
+    status = FindingFileEntry(filepath, OLD, source, WRITE);
+    if(status) return status;
+
+    int disk_block = source.entries[source.index].first_blk;
+    while(disk_block != FAT_EOF){
+        int next_block = fat[disk_block];
+        fat[disk_block] = FAT_FREE;
+        disk_block = next_block;
+    }
+
+    //writing the empty block to disk
+    memset(&source.entries[source.index], 0, sizeof(dir_entry));
+    status = disk.write(source.block, (uint8_t*)source.entries);
+    if (status) return status;
+    
+    status = writeToFAT();
+    if (status) return status;
+    
     return 0;
 }
+int FS::get_file_string(std::string filepath,std::string &text){
+    //This function works the same as cat but modifies the reference text to be the text of the filepath. 
+    int status = ReadFromFAT();
+    if(status){
+        return status;
+    }
 
+    dir_info dir;
+    dir_entry dir_entries[MAX_DIR_ENTRIES];
+    status = FileEntry(dir.block,filepath,dir.index,dir.entries,OLD);
+    if(status){
+        return status;
+    }
+
+    int file_block = dir.entries[dir.index].first_blk;
+    
+
+    uint32_t size = 0;
+    uint32_t tot_size = 0;
+
+    char data[BLOCK_SIZE];
+
+    status = disk.read(file_block, (uint8_t*)data);
+    if(status){
+        return status;
+    }
+    int length = 0;
+
+    
+    while(tot_size < dir.entries[dir.index].size){
+        for (int i = size; i < BLOCK_SIZE; i++, length++){
+            if (data[i] == '\0'){
+                break;
+            } 
+        }
+        text += &data[size];
+        size += length;
+        tot_size += length;
+        size++;
+        tot_size++;
+        
+    }
+    return 0;
+
+}
+void FS::writeBlock(int block_num, int offset, std::string data) {
+    uint8_t buffer[BLOCK_SIZE];
+    // Read current block into buffer
+    int status = ReadFromFAT();
+    if(status != 0){
+        std::cout << "ERROR: Could not read block "<< block_num << std::endl;
+        return;
+    }
+    // Write data to buffer
+    for (int i = 0; i < data.length(); i++) {
+        buffer[offset + i] = data[i];
+    }
+    // Write modified buffer back to block
+    status = disk.write(block_num, buffer);
+    if(status != 0){
+        std::cout << "ERROR: Could not write block "<< block_num << std::endl;
+        return;
+    }
+}
+void FS::readBlock(int block_num, uint8_t* buffer) {
+    int status = disk.read(block_num, buffer);
+    if(status != 0){
+        std::cout << "ERROR: Could not read block "<< block_num << std::endl;
+        return;
+    }
+}
 // append <filepath1> <filepath2> appends the contents of file <filepath1> to
 // the end of file <filepath2>. The file <filepath1> is unchanged.
-int
-FS::append(std::string filepath1, std::string filepath2)
+int FS::append(std::string filepath1, std::string filepath2)
 {
     std::cout << "FS::append(" << filepath1 << "," << filepath2 << ")\n";
-    return 0;
+    std::string filepath1_text = "";
+    std::string filepath2_text = "";
+    get_file_string(filepath1,filepath1_text);
+    
+    int status = ReadFromFAT();
+    if(status) return status;
+    
+    // if (!fileExists(filepath1) || !fileExists(filepath2)) {
+    //     std::cout << "ERROR: One or both of the files does not exist." << std::endl;
+    //     return 1;
+    // }
+    
+    // // Check that destination file is not currently open for writing
+    // if (isFileOpen(filepath2, WRITE)) {
+    //     std::cout << "ERROR: The destination file is currently open for writing." << std::endl;
+    //     return 1;
+    // }
+    
+    // Read the source file in chunks and append to the destination file
+    dir_info dir_source;
+    dir_info dir_destination;
+    int status = FindingFileEntry(filepath1, OLD, dir_source, READ);
+    if(status) {
+        return status;
+    }
+    status = FindingFileEntry(filepath2, OLD, dir_destination, READ);
+    if(status) {
+        return status;
+    }
+    int block_size = BLOCK_SIZE - sizeof(int);
+    int bytes_read = 0;
+    int bytes_written = 0;
+    std::string buffer;
+    buffer.resize(block_size);
+    int source_block = dir_source.entries[dir_source.index].first_blk;
+    int dest_block = dir_destination.entries[dir_destination.index].first_blk;
+    while (fat[dest_block] != -1) {
+        dest_block = fat[dest_block];
+    }
+    while (bytes_written < dir_source.entries[dir_source.index].size) {
+        int bytes_to_read = std::min(block_size, dir_source.entries[dir_source.index].size - bytes_read);
+        readBlock(source_block, 0, buffer, bytes_to_read);
+        bytes_read += bytes_to_read;
+        bytes_written += bytes_to_read;
+        int block_offset = bytes_written % block_size;
+        if (block_offset == 0) {
+            // Allocate new block
+            int new_block = findFreeBlock();
+            if (new_block == -1) {
+                // No free blocks available
+                std::cout << "ERROR: No free blocks available." << std::endl;
+                return 1;
+            }
+            fat[dest_block] = new_block;
+            dest_block = new_block;
+        }
+        writeBlock(dest_block, block_offset, buffer.substr(0, bytes_to_read));
+        source_block = fat[source_block];
+    }
+    // Update destination file's metadata
+    dir_destination.entries[dir_destination.index].size += bytes_written;
+    status = writeToFAT();
+    return status;
 }
 
 // mkdir <dirpath> creates a new sub-directory with the name <dirpath>
 // in the current directory
-int
-FS::mkdir(std::string dirpath)
+int FS::mkdir(std::string dirpath)
 {
     std::cout << "FS::mkdir(" << dirpath << ")\n";
     return 0;
 }
 
 // cd <dirpath> changes the current (working) directory to the directory named <dirpath>
-int
-FS::cd(std::string dirpath)
+int FS::cd(std::string dirpath)
 {
     std::cout << "FS::cd(" << dirpath << ")\n";
     return 0;
@@ -350,8 +599,7 @@ FS::cd(std::string dirpath)
 
 // pwd prints the full path, i.e., from the root directory, to the current
 // directory, including the currect directory name
-int
-FS::pwd()
+int FS::pwd()
 {
     std::cout << "FS::pwd()\n";
     return 0;
@@ -359,8 +607,7 @@ FS::pwd()
 
 // chmod <accessrights> <filepath> changes the access rights for the
 // file <filepath> to <accessrights>.
-int
-FS::chmod(std::string accessrights, std::string filepath)
+int FS::chmod(std::string accessrights, std::string filepath)
 {
     std::cout << "FS::chmod(" << accessrights << "," << filepath << ")\n";
     return 0;
@@ -369,9 +616,8 @@ FS::chmod(std::string accessrights, std::string filepath)
 
 //----------------- OWN FUNCTIONS -----------------
 
-
-
 int FS::writeToFAT(){
+    //writes to FAT
     int status = disk.write(FAT_BLOCK, (uint8_t*)fat);
     return status;
 }
