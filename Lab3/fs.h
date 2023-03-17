@@ -51,8 +51,7 @@ private:
     int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries, uint8_t NewOrOld);
     int GetDirectoryBlock(std::string filepath, int& dir_block);
     int get_file_string(std::string filepath,std::string &text);
-    void writeBlock(int block_num, int offset, std::string data);
-    void readBlock(int block_num, uint8_t* buffer);
+    int create_with_string(std::string filepath,std::string line);
 
 public:
     FS();

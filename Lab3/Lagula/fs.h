@@ -78,6 +78,8 @@ private:
     // either find an exsting file, or find a free entry for a new file (note: check for duplicate filenames).
     int findFileEntry(int block_no, std::string filepath, uint8_t newOrExisting, int& dir_index, dir_entry* dir_entries, uint8_t access_rights);
 
+    
+
 public:
     FS();
     ~FS();
