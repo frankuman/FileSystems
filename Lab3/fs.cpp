@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstring>
+#include <cmath>
 #include "fs.h"
 
 FS::FS()
@@ -492,110 +493,148 @@ int FS::create_with_string(std::string filepath,std::string text){
 
     return 0;
 }
+int FS::get_free_blocks(int* free_blocks,int amount_blocks,int start_block){
+    //get new
+    int status = disk.read(FAT_BLOCK, (uint8_t*) &fat);
+    if(status){
+        return status;
+    }
+
+    int free_blocks_counter = 0;
+    //calculates free blocks
+    for(int i = 2; i < BLOCK_SIZE/2 && free_blocks_counter < amount_blocks; i++){
+        if(fat[i] == FAT_EOF){
+            free_blocks[free_blocks_counter+start_block] = i;
+            free_blocks_counter++;
+        }
+    }
+    std::cerr << "DEBUG: Free blocks: " << *free_blocks << std::endl;
+
+    return 0;
+}
+int FS::update_FAT(int* free_block, int block_amount){
+    // WARNING THIS IS COPYPASTED
+    if (disk.read(FAT_BLOCK, (uint8_t*) &fat) < 0 ) {
+        std::cerr << "Error: FAT encountered disk error" << std::endl;
+        return -1;
+    }
+
+	// link FAT
+	for (int i = 0; i < block_amount-1; i++){
+        // if no free blocks in FAT was reached (incase other function than get_free_blocks was used)
+        if (i >= BLOCK_SIZE/2) {
+            std::cerr << "Error: Disk is full" << std::endl;
+            return -1;
+        }
+
+		fat[free_block[i]] = free_block[i+1];
+	}
+	fat[free_block[block_amount-1]] = FAT_EOF;
+
+	// FAT update
+	if (disk.write(FAT_BLOCK, (uint8_t*) &fat) != 0){
+		std::cerr << "Error: FAT encountered disk error" << std::endl;
+		return -1;
+	}
+    std::cerr << "DEBUG: No Error - Disk updated" << std::endl;
+	return 0;
+}
+
+int FS::write_block(std::string text, int block_amount, int* free_blocks){
+    int status = update_FAT(free_blocks,block_amount);
+    if(status) return status;
+    char c_write[BLOCK_SIZE];
+    
+    for(int i = 0; i < block_amount -1; i++){
+        text.copy(c_write, BLOCK_SIZE, i*BLOCK_SIZE);
+        std::cout << "DEBUG- text: " << text << std::endl;
+
+        if(disk.write(free_blocks[i], (uint8_t*) &c_write) != 0){
+            std::cerr << "Error: Couldnt write" << std::endl;
+
+        }
+        
+    }
+    //Write the last block
+    text.copy(c_write,text.length()%BLOCK_SIZE,(block_amount-1)*BLOCK_SIZE);
+    c_write[text.length()%BLOCK_SIZE] = '\0';
+    disk.write(free_blocks[block_amount-1],(uint8_t*) &c_write);
+    std::cout << "DEBUG- c_write: " << c_write << std::endl;
+    return 0;
+}
 // append <filepath1> <filepath2> appends the contents of file <filepath1> to
 // the end of file <filepath2>. The file <filepath1> is unchanged.
-int FS::append(std::string filepath1, std::string filepath2){
+int FS::append(std::string sourcepath, std::string destinationpath){
     int status = ReadFromFAT();
 
-    std::cout << "FS::append(" << filepath1 << "," << filepath2 << ")\n";
-    std::string filepath1_text = ".";
-    std::string filepath2_text = ".";
-    get_file_string(filepath1,filepath1_text);
-    get_file_string(filepath2,filepath2_text);
-    std::cout << "filepath1_text: " << filepath1_text << std::endl; 
-    std::cout << "filepath2_text: " << filepath2_text << std::endl; 
-    
-    
-    std::string full_string = filepath2_text.substr(1,filepath2_text.length()-1) + filepath1_text.substr(1,filepath1_text.length()-1);
-    std::cout << "append text: " << full_string << std::endl; 
+    std::cout << "FS::append(" << sourcepath << "," << destinationpath << ")\n";
+    std::string temp_append_text;
+    get_file_string(sourcepath,temp_append_text);
+    std::string append_text = "\n" + temp_append_text;
+    //Find first block of paths
+    dir_info source;
+    dir_info destination;
+    status = FindingFileEntry(sourcepath, OLD, source, READ);
+    if(status) return status;
+    status = FindingFileEntry(destinationpath, OLD, destination, WRITE);
+    if(status) return status;
 
-    rm(filepath2);
+         
 
-    //------------------------------copied from create()------------------------------
-    
-    status = ReadFromFAT();
-    if(status){
-        return status;
+    int source_block = source.entries[source.index].first_blk;
+    int destination_block = destination.entries[destination.index].first_blk;
+    int source_size = source.entries[source.index].size;
+    int destination_size = destination.entries[destination.index].size;
+    int tot_size = destination_size + source_size;
+
+
+    //We need the latest fat from disk
+    if(disk.read(FAT_BLOCK,(uint8_t*) &fat)< 0){
+        return -1;
     }
-    std::string line = full_string;
-    std::string filepath = filepath2;
-    std::string nameOfFile = filepath;
-    dir_info dir;
-    
-    status = FileEntry(dir.block,filepath,dir.index,dir.entries, NEW);
-    int current_block = findFreeBlock();
-    std::cout << "current_block: " << current_block << std::endl; 
-
-    if(current_block == -1){
-        std::cout << "ERROR: No free blocks\n" << std::endl;
-        return 1;
+    while(fat[destination_block] != FAT_EOF){
+        destination_block = fat[destination_block];
     }
 
-    fat[current_block] = FAT_EOF;
-    int first_block = current_block;
-    char data[BLOCK_SIZE] = {int(0)}; //Data container  memset(data, 0, BLOCK_SIZE);
+    char text_buffer[BLOCK_SIZE];
 
-
-    uint32_t size = 0;      // Current block size counter
-    uint32_t tot_size = 0;  // File size counter
-    //To find the next block
-    while(!line.empty()){
-        if((line.length() + 1 + size) > BLOCK_SIZE){
-            int length = BLOCK_SIZE - size;
-            tot_size += length;
-            memcpy(&data[size], line.c_str(), length);
-            std::cout << "DEBUG: Placing " << line.substr(length) << " at block " << current_block << std::endl;
-
-            status = disk.write(current_block, (uint8_t*)data);
-            
-            if(status){
-                return 1;
-            }
-            memset(data,0,BLOCK_SIZE);
-            int new_block = findFreeBlock();
-                if (new_block == -1) {
-                    std::cout << "ERROR: No free blocks\n";
-                    return 1;
-                }
-            std::cout << "DEBUG: Old block: " << current_block << " New block: " << new_block << std::endl;
-
-            fat[new_block] = FAT_EOF;
-            fat[current_block] = new_block;
-            current_block = new_block;
-            size = 0;
-            line = line.substr(length);
-            // 0000000/0
-        }
-        else{
-            std::cout << "DEBUG: Placing " << line << " at block " << current_block << std::endl;
-            memcpy(&data[size], line.c_str(), line.length() + 1);
-            size += line.length() + 1;
-            tot_size += line.length();
-            line.clear();
-        }
+    if(disk.read(destination_block,(uint8_t*) &text_buffer)<0){
+        return -1;
     }
-    tot_size++;
-    status = disk.write(current_block, (uint8_t*)data);
-    if(status){
-        return status;
+    append_text = text_buffer + append_text;
+    //Calculation of how many blocks file will be
+    int block_amount = ceil((append_text.length()+1) / (float) BLOCK_SIZE);
+    if(block_amount < 0){
+        return -1;
     }
-    memcpy(dir.entries[dir.index].file_name, nameOfFile.c_str(), nameOfFile.length() + 1);
-    dir.entries[dir.index].first_blk = first_block;
-    dir.entries[dir.index].size = tot_size;
-    dir.entries[dir.index].type = TYPE_FILE;
-    dir.entries[dir.index].access_rights = READ | WRITE;
+    destination.entries[destination.index].size = tot_size;
+
+    int free_blocks[block_amount+1];
+
+    free_blocks[0] = destination_block;
     
-    status = disk.write(dir.block, (uint8_t*)dir.entries);
-    if (status){
-        return status;
-    }
-        
+    status = (get_free_blocks(free_blocks,block_amount-1,1));    
+    if(status) return status;
+    status = write_block(append_text,block_amount,free_blocks);
+    std::cout << "DEBUG: ( SOURCEBLOCK: " << source_block << ", DESTBLOCK: " << destination_block << ")\n";
+    std::cout << "DEBUG: ( append_text: " << append_text << ")\n";
+    std::cout << "DEBUG: ( BLOCK AMOUNT: " << block_amount << ")\n";
+    std::cout << "DEBUG: ( FREE AMOUNT: " << *free_blocks << ")\n";
+    std::cout << "DEBUG: ( SOURCESIZE: " << source_size << ", DESTSIZE: " << destination_size << ")\n";
+    std::cout << "DEBUG: ( NEW SIZE: " << destination.entries[destination.index].size << ")\n";
+
+    if(status) return status;
+    //Path things need to happen here
+    
+    //why no work
+    //memcpy(destination.entries[destination.index].size, tot_size, tot_size. + 1);
+
+    status = disk.write(destination.block, (uint8_t*)destination.entries);
     status = writeToFAT();
-    if (status){
-        return status;
-    }
-    return 0;
+    if (status) return status;
     
+    return 0;
+
 }
 
 // mkdir <dirpath> creates a new sub-directory with the name <dirpath>

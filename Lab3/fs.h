@@ -42,7 +42,7 @@ private:
     int16_t fat[BLOCK_SIZE/2];
 
     //----------- OWN FUNCTIONS -----------
-    int ReadFromFAT();
+       int ReadFromFAT();
     int writeToFAT();
     std::string getFileName(std::string filepath);
     int findFreeBlock();
@@ -52,6 +52,9 @@ private:
     int GetDirectoryBlock(std::string filepath, int& dir_block);
     int get_file_string(std::string filepath,std::string &text);
     int create_with_string(std::string filepath,std::string line);
+    int get_free_blocks(int* free_blocks,int amount_blocks,int start_block);
+    int write_block(std::string text, int block_amount, int* free_blocks);
+    int update_FAT(int* free_block, int block_amount);
 
 public:
     FS();
