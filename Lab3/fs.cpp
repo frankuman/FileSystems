@@ -268,7 +268,7 @@ int FS::ls(){
         return status;
     }
         
-    std::cout << "Name \t size" << std::endl; 
+    std::cout << "Name \t size" << std::endl; //We need to add type
     for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++){
         if (dir_entries[i].file_name[0] != 0){
             std::string blocks = std::to_string(curr_blk);
@@ -636,39 +636,226 @@ int FS::append(std::string sourcepath, std::string destinationpath){
     return 0;
 
 }
+int FS::get_dir_name(std::string path,std::string &name){
+    //We should extract the path name here
+    size_t pos = path.find_last_of("/\\");
+    if (pos == std::string::npos){
+        return -1;
+    }
+    name = path.substr(pos + 1);
+    return 0;
+}
 
-// mkdir <dirpath> creates a new sub-directory with the name <dirpath>
-// in the current directory
+int FS::update_dir_size(dir_entry* dir, int size, bool parent){
+    //Updated the dir_size, if parent = true it updates the subdirs aswell
+    dir[DOT_INDEX].size += size;
+    int status;
+    if(parent = true){
+        if(dir[DOT_INDEX].first_blk == ROOT_BLOCK){
+            dir[DOUBLE_DOT_INDEX].size = dir[DOT_INDEX].size;
+        }
+        //If dir is subdir
+        else{
+            int sub_block = dir[DOT_INDEX].first_blk;
+
+            dir_entry buffer[MAX_DIR_ENTRIES];
+            status = (disk.read(dir[DOUBLE_DOT_INDEX].first_blk,(uint8_t*) &buffer));
+            if(status){
+                return status;
+            }
+            //update subsizes
+            for (int i = 0; i < MAX_DIR_ENTRIES; i++) {
+                // if path exists
+                if (dir[i].first_blk == sub_block) {
+                    buffer[i].size += size;
+                }
+            }
+            status = (disk.read(dir[DOT_INDEX].first_blk,(uint8_t*) &buffer));
+            if(status){
+                return status;
+            }
+
+        }
+    }
+    return 0;
+}
 int FS::mkdir(std::string dirpath)
 {
     std::cout << "FS::mkdir(" << dirpath << ")\n";
+    //<- check if dir(path) doesn't already exist
+    std::string name;
+    dir_info dir;
+    int status = get_dir_name(dirpath,name);
+    if(status){
+        name = dirpath;
+    }
+    std::cout << "DEBUG: dirname: " << name << "\n";
+
+    //<- check if parent dir exists or if valid path
+    //<- check access rights
+    /***/
+    
+    if(name == PARENT_DIR){
+        std::cerr << "Error:" << PARENT_DIR << " is for the parent dir" << std::endl;
+    }
+    status = ReadFromFAT();
+    if(status){
+        return status;
+    }
+    
+    status = FindingFileEntry(dirpath,NEW,dir,WRITE);
+    if(status){
+        return status;
+    }
+    int free_block = findFreeBlock();
+    fat[free_block] = FAT_EOF;
+    memcpy(dir.entries[dir.index].file_name, name.c_str(), name.length() + 1);
+    dir.entries[dir.index].first_blk = free_block;
+    dir.entries[dir.index].size = 0;
+    dir.entries[dir.index].type = TYPE_DIR;
+    dir.entries[dir.index].access_rights = READ | WRITE | EXECUTE;
+    status = disk.write(dir.block, (uint8_t*)dir.entries);
+    if(status){
+        return status;
+    }
+    memset(dir.entries, 0, BLOCK_SIZE);
+    dir.index = 0;
+    memcpy(dir.entries[dir.index].file_name, PARENT_DIR.c_str(), PARENT_DIR.length() + 1);
+    dir.entries[dir.index].first_blk = dir.block;
+    dir.entries[dir.index].size = 0;
+    dir.entries[dir.index].type = TYPE_DIR;
+    dir.entries[dir.index].access_rights = READ | WRITE | EXECUTE;
+    status = update_dir_size(dir.entries, sizeof(dir.entries),true);
+    if(status){
+        return status;
+    }
+    status = disk.write(free_block, (uint8_t*)dir.entries);
+    if(status){
+            return status;
+    }
+    status = writeToFAT();
+    if(status){
+            return status;
+    }
     return 0;
 }
 
-// cd <dirpath> changes the current (working) directory to the directory named <dirpath>
-int FS::cd(std::string dirpath)
+int
+FS::cd(std::string dirpath)
 {
     std::cout << "FS::cd(" << dirpath << ")\n";
+    if (dirpath == "/") {
+        // Simply go to the root directory
+        curr_blk = ROOT_BLOCK;
+    }
+    else {
+        // Remove trailing "/" from the dirpath
+        if (dirpath.back() == '/')
+            dirpath.pop_back();
+
+        // Find the directory index for the passed directory and read the directory block into memory.
+        dir_info dir;
+        int sts = FindingFileEntry(dirpath, OLD, dir, READ);
+        if (sts) return sts;
+
+        if (dir.entries[dir.index].type != TYPE_DIR) {
+            std::cout << "Error: '" << dirpath << "' is not a directory\n";
+            return 1;
+        }
+
+        curr_blk = dir.entries[dir.index].first_blk;
+    }
+
     return 0;
 }
-
+//hmh
 // pwd prints the full path, i.e., from the root directory, to the current
 // directory, including the currect directory name
-int FS::pwd()
+int
+FS::pwd()
 {
     std::cout << "FS::pwd()\n";
+    std::string path = "";
+    if (curr_blk == ROOT_BLOCK) {
+        path = "/";
+
+    }
+    else {
+        int curr_block = curr_blk;
+        while (curr_block != ROOT_BLOCK) {
+
+            int dir_index;
+            dir_entry dir_entries[MAX_DIR_ENTRIES];
+            int sts = FileEntry(curr_block, PARENT_DIR, dir_index, dir_entries,OLD);
+            if (sts) return sts;
+
+            int parent_block = dir_entries[dir_index].first_blk;
+
+            // read parent directory
+            sts = disk.read(parent_block, (uint8_t*)dir_entries);
+            if (sts) return sts;
+
+            // find directory entry which points to the current directory
+            dir_index = -1;
+            for (int i = 0; i < (int)MAX_DIR_ENTRIES; i++)
+            {
+                if (dir_entries[i].file_name[0] != 0 && dir_entries[i].first_blk == curr_block)
+                {
+                    dir_index = i;
+                    break;
+                }
+            }
+
+            if (dir_index < 0) {
+                std::cout << "Error: Sub directory with block-number " << curr_block << " not found in path " << path << "\n";
+                return 1;
+            }
+
+            // get the directory name of the *current* directory
+            std::string dir = dir_entries[dir_index].file_name;
+            if (curr_block == curr_blk)
+                path = dir;
+            else
+                path = dir + "/" + path;
+            curr_block = parent_block;
+
+        }
+        path = "/" + path;
+    }
+
+    std::cout << path.c_str() << "\n";
+
     return 0;
 }
 
 // chmod <accessrights> <filepath> changes the access rights for the
 // file <filepath> to <accessrights>.
-int FS::chmod(std::string accessrights, std::string filepath)
+int
+FS::chmod(std::string accessrights, std::string filepath)
 {
     std::cout << "FS::chmod(" << accessrights << "," << filepath << ")\n";
+
+    uint8_t access_rights = std::stoi(accessrights, nullptr, 0);
+    std::string filename;
+    get_dir_name(filepath,filename);
+    if (filename == PARENT_DIR)
+    {
+        std::cout << "Error: parent dir '" << PARENT_DIR << "' cannot be modified.\n";
+        return 1;
+    }
+
+    // Find the directory index for the passed file and read directory block into memory.
+    dir_info dir;
+    int sts = FindingFileEntry(filepath, OLD, dir, 0);  // Note! If we don't allow full access for chmod we cannot change a read-only file
+    if (sts) return sts;
+
+    dir.entries[dir.index].access_rights = access_rights;
+    sts = disk.write(dir.block, (uint8_t*)dir.entries);
+    if (sts)
+        return sts;
+
     return 0;
 }
-
-
 //----------------- OWN FUNCTIONS -----------------
 
 int FS::writeToFAT(){

@@ -18,6 +18,10 @@
 #define EXECUTE 0x01
 #define OLD 0
 #define NEW 1
+#define DOT_INDEX 1
+#define DOUBLE_DOT_INDEX 1
+
+const std::string PARENT_DIR = "..";
 
 struct dir_entry {
     char file_name[56]; // name of the file / sub-directory
@@ -42,7 +46,7 @@ private:
     int16_t fat[BLOCK_SIZE/2];
 
     //----------- OWN FUNCTIONS -----------
-       int ReadFromFAT();
+    int ReadFromFAT();
     int writeToFAT();
     std::string getFileName(std::string filepath);
     int findFreeBlock();
@@ -55,6 +59,8 @@ private:
     int get_free_blocks(int* free_blocks,int amount_blocks,int start_block);
     int write_block(std::string text, int block_amount, int* free_blocks);
     int update_FAT(int* free_block, int block_amount);
+    int get_dir_name(std::string path, std::string &name);
+    int update_dir_size(dir_entry* dir, int size, bool PARENT);
 
 public:
     FS();
