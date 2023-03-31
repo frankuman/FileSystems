@@ -42,9 +42,9 @@ struct dir_info {
 class FS {
 private:
     Disk disk;
+    std::string working_directory = "..";
     // size of a FAT entry is 2 bytes
     int16_t fat[BLOCK_SIZE/2];
-
     //----------- OWN FUNCTIONS -----------
     int ReadFromFAT();
     int writeToFAT();
@@ -60,8 +60,10 @@ private:
     int write_block(std::string text, int block_amount, int* free_blocks);
     int update_FAT(int* free_block, int block_amount);
     int get_dir_name(std::string path, std::string &name);
-    int update_dir_size(dir_entry* dir, int size, bool PARENT);
-
+    void goHome();
+    void removeTrailingSlash(std::string& str);
+    bool accessread(dir_entry dir_entries);
+    bool accesswrite(dir_entry dir_entries);
 public:
     FS();
     ~FS();
