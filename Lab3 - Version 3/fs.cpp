@@ -248,7 +248,7 @@ bool FS::goToPath(std::string newPath)
                             else if (workingDirAsString.size() > 1)
                             {
                                 workingDirAsString.erase(workingDirAsString.size() - strlen(workingDir->dirs[ITSELF].file_name) - 1,
-                                                         strlen(workingDir->dirs[ITSELF].file_name) + 1);
+                                                        strlen(workingDir->dirs[ITSELF].file_name) + 1);
                             }
                             else
                             {
@@ -500,12 +500,12 @@ int FS::ls()
         if (i == ITSELF)
         {
             std::cout << "."
-                      << "\t\t\t";
+                    << "\t\t\t";
         }
         else if (i == PARENT)
         {
             std::cout << ".."
-                      << "\t\t\t";
+                    << "\t\t\t";
         }
         else
         {
@@ -951,8 +951,7 @@ int FS::pwd()
 
 // chmod <accessrights> <filepath> changes the access rights for the
 // file <filepath> to <accessrights>.
-int FS::chmod(std::string accessrights, std::string filepath)
-{
+int FS::chmod(std::string accessrights, std::string filepath){
     std::cout << "FS::chmod(" << accessrights << "," << filepath << ")\n";
     saveWorkingDir();
 
