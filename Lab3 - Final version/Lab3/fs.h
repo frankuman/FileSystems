@@ -70,7 +70,7 @@ private:
     int get_free_blocks(int* free_blocks,int amount_blocks,int start_block);
     int write_block(std::string text, int block_amount, int* free_blocks);
     int update_FAT(int* free_block, int block_amount);
-    int get_dir_name(std::string path, std::string &name);
+    int get_dir_name(std::string path, std::string &name, std::string &absolute_path);
     void goHome();
     void removeTrailingSlash(std::string& str);
     bool accessread(dir_entry dir_entries);
