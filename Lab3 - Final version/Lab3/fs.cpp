@@ -14,12 +14,15 @@ FÖRORD
 ------------------------------------------------------------------------------------------------
 Root heter ".." och inte "/"
 
-Designval: Om man ska göra move eller copy till en directory, måste man skriva cp(file, /dir) eller mv(file,/dir)
-Man kan inte skriva cd(d1) om man är i d1/d2, då det inte funkar så vanligtvist.
+--Designval--
+Om man ska göra move eller copy till en directory, måste man skriva cp(file, /dir) eller mv(file,/dir)
+Man kan inte skriva cd(d1) om man är i d1/d2, då det inte funkar så vanligtvist i t.ex Linux.
 
+--Angående uppgiften--
 Denna uppgift tog alldeles för lång tid och ger alldeles för lite högskolepoäng för att vara logisk. 
 Det är möjligt att vi har övertänkt allt och gjort det svårt för oss själva, men detta var verkligen inte enkelt.
-Det finns möjlighet att vi kan göra korden snabbare, kortare och smidigare men vi har verkligen inte tiden för att göra detta...
+Det finns möjlighet att vi kan göra korden snabbare, kortare och smidigare men vi har verkligen inte tiden för att göra detta, 
+med tanke på den enorma tiden vi har lagt på något som egentligen ska vara 1 hp = ca 35-40h ...
 Hoppas detta räcker. Lycka till med rättningen!
 ------------------------------------------------------------------------------------------------
 */
