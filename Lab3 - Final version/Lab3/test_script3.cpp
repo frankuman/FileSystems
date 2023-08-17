@@ -184,11 +184,11 @@ Shell::run()
     if (ret_val)
         std::cout << "Error: ls failed, error code " << ret_val << std::endl;
     arg1 = "f1";
-    arg2 = "d1";
+    arg2 = "/d1";
     ret_val = filesystem.cp(arg1, arg2);
     if (ret_val)
         std::cout << "Error: cp(" << arg1 << "," << arg2 << ") failed, error code " << ret_val << std::endl;
-    arg1 = "d1";
+    arg1 = "/d1";
     ret_val = filesystem.cd(arg1);
     if (ret_val)
         std::cout << "Error: cd " << arg1 << " failed, error code " << ret_val << std::endl;
@@ -231,7 +231,7 @@ Shell::run()
     if (ret_val)
         std::cout << "Error: ls failed, error code " << ret_val << std::endl;
     arg1 = "f2";
-    arg2 = "d1";
+    arg2 = "/d1";
     ret_val = filesystem.mv(arg1, arg2);
     if (ret_val)
         std::cout << "Error: mv(" << arg1 << "," << arg2 << ") failed, error code " << ret_val << std::endl;

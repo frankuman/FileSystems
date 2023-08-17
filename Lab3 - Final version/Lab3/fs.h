@@ -64,7 +64,7 @@ private:
     uint16_t curr_blk = ROOT_BLOCK;
     int FindingFileEntry(std::string filepath, uint8_t newOrExisting, dir_info& dir, uint8_t access_rights);
     int FileEntry(int dir_block, std::string filepath, int& dir_index, dir_entry* dir_entries, uint8_t NewOrOld, uint8_t accessrights);
-    int GetDirectoryBlock(std::string filepath, int& dir_block);
+    int GetDirectoryBlock(std::string filepath, int& dir_block, uint8_t accessRights);
     int get_file_string(std::string filepath,std::string &text);
     int create_with_string(std::string filepath,std::string line);
     int get_free_blocks(int* free_blocks,int amount_blocks,int start_block);
@@ -75,6 +75,10 @@ private:
     void removeTrailingSlash(std::string& str);
     bool accessread(dir_entry dir_entries);
     bool accesswrite(dir_entry dir_entries);
+    int path_handler(std::string &path, bool &is_absolute_path, std::string &dirpath);
+    std::string getFileName(std::string filepath);
+    std::string getDirPath(std::string dirpath);
+    int dotdot_remover(std::string &dirpath);
 public:
     FS();
     ~FS();
