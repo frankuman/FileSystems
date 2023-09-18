@@ -19,7 +19,7 @@ The create function starts off calling ReadFromFAT, it then checks with the func
 **cat <filename>**
 Cat function needs to read the content of a file and print it out to the user. To do this we first start by reading the FAT block (1) so we initialize the FAT. After that we need to find where the file is, if it exists. To do this we use a userdefined function called FindingFileEntry,. After that cat uses the struct to find what index the file has, gets the file and prints out its contents. Because lines can span over multiple lines the code here checks for block boundaries, and if it spans it checks the next block.
 
-**ls **
+**ls**
 The function ls was implemented by reading the FAT block (1), therefore it reads all the directory entries for the current directory or working directory, so that it gets an updated struct. When the struct is updated, it iterates over all the 64 possible dir entries in the struct or dir.
 After that is just smart string writing and pretty printing to show the user what is apparent in the directory.
 
